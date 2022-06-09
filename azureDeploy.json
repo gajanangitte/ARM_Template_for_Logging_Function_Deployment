@@ -96,7 +96,7 @@
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
         "clientAffinityEnabled": false,
         "siteConfig": {
-          "alwaysOn": true,
+          "alwaysOn": false,
           "cors": {
             "allowedOrigins": [
               "*"
