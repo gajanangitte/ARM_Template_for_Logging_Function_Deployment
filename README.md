@@ -4,4 +4,4 @@ The master branch contains a generic version of the deployment template, tailore
 
 See other branches for more specific, working examples.  
 
-[![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/)
+[![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https://raw.githubusercontent.com/gajanangitte/ARM_Template_for_Logging_Function_Deployment/master/azureDeploy.json)
