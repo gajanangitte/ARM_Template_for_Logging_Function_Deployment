@@ -1,6 +1,6 @@
 # Deploy a Azure Function for Flow Logs version 3, using an ARM template
 
-The master branch contains a generic version of the deployment template, tailored for a fictional version of a function . The Deploy to Azure button below works, but there's no function to be deployed with current settings.
+This repository acts as a deployment template for a newer variant of Flow Logs.
 
 See other branches for more specific, working examples.  
 
