@@ -1,0 +1,166 @@
+/*
+  		□ SA having flowlogs, connection string
+			□ SA for metadata connection string
+			□ Map of flowlog Id and SA ID
+      □ LA workspaceId and shared key
+
+      ARM Function Deployment for VNet Flow Logs
+*/
+
+
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the function app that you wish to create."
+      }
+    },
+    "githubRepoURL": {
+      "type": "string",
+      "defaultValue": "https://github.com/gajanangitte/Azure_FlowLog3_Function.git",
+      "metadata": {
+        "description": "The link to function source code which orchestrates flow logging"
+      }
+    },
+    "githubRepoBranch": {
+      "type": "string",
+      "defaultValue": "master"
+    },
+    "flowLogsStorageAccountConnectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "Mandatory storage account connection string for flow log data."
+      }
+    },
+    "metaDataStorageAccountConnectionString": {
+      "type": "string",
+      "defaultValue": "parameters['flowLogsStorageAccountConnectionString']",
+      "metadata": {
+        "description": "Connection string for the account which holds meta-data"
+      }
+    },
+    "logAnalyticsWorkspaceID": {
+      "type": "string",
+      "metadata": {
+        "description": "The Workspace ID of the Log Analytics Workspace to query custom logs"
+      }
+    },
+    "logAnalyticsSharedKey": {
+      "type": "string",
+      "metadata": {
+        "description": "The Shared Key of the Log Analytics Workspace to query custom logs"
+      }
+    }
+  },
+  "variables": {
+    "functionAppName": "[parameters('appName')]",
+    "ServicePlan": "[concat('serviceplan', parameters('appName'))]",
+    "hostingPlanName": "Consumption",
+    "Consumption": "[concat('consumption', parameters('appName'))]",
+    "storageAccountName": "[concat('func', uniquestring(resourceGroup().id))]",
+    "storageAccountid": "[concat(resourceGroup().id,'/providers/','Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]"
+    //  "githubRepoURL": "https://github.com/gajanangitte/Azure_FlowLog3_Function.git",
+    // "githubRepoBranch":  "master",
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "accountType": "Standard_LRS"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2016-09-01",
+      "name": "[variables('Consumption')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "name": "[variables('Consumption')]",
+        "computeMode": "Dynamic",
+        "sku": "Dynamic"
+      }
+    },
+    {
+      "apiVersion": "2016-08-01",
+      "type": "Microsoft.Web/sites",
+      "name": "[variables('functionAppName')]",
+      "location": "[resourceGroup().location]",
+      "kind": "functionapp",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "AzureWebJobsDashboard",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+            },
+            {
+              "name": "WEBSITE_CONTENTSHARE",
+              "value": "[toLower(variables('functionAppName'))]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "6.5.0"
+            },
+            {
+              "name": "blobContainerName",
+              "value": "insights-logs-networksecuritygroupflowevent"
+            },
+            {
+              "name": "AZURE_STORAGE_LOGS_CONNECTION_STRING",
+              "value": "[parameters('flowLogsStorageAccountConnectionString')]"
+            },
+            {
+              "name": "AZURE_STORAGE_METADATA_CONNECTION_STRING",
+              "value": "[parameters('metaDataStorageAccountConnectionString')]"
+            },
+            {
+              "name": "AZURE_LOG_ANALYTICS_WORKSPACE_ID",
+              "value": "[parameters('logAnalyticsWorkspaceID')]"
+            },
+            {
+              "name": "AZURE_LOG_ANALYTICS_SHARED_KEY",
+              "value": "[parameters('logAnalyticsSharedKey')]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "apiVersion": "2016-08-01",
+          "name": "web",
+          "type": "sourcecontrols",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
+          ],
+          "properties": {
+            "RepoUrl": "[parameters('githubRepoURL')]",
+            "branch": "[parameters('githubRepoBranch')]",
+            "IsManualIntegration": true
+          }
+        }
+      ]
+    }
+  ]
+}
