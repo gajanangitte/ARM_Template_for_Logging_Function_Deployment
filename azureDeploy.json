@@ -8,21 +8,52 @@
                 "description": "The name of the function app that you wish to create."
             }
         },
-        "githubRepoURL": {
+        "githubOrchestratorRepoURL": {
             "defaultValue": "https://dev.azure.com/AahilMicrosoft/Virtual%20Network%20Flow%20Logger/_git/Flogger",
             "type": "String",
             "metadata": {
                 "description": "The link to function source code which orchestrates flow logging"
             }
         },
-        "githubRepoBranch": {
-            "defaultValue": "master",
-            "type": "String"
+        "githubIngestorRepoURL": {
+            "defaultValue": "https://dev.azure.com/AahilMicrosoft/Virtual%20Network%20Flow%20Logger/_git/Log%20Ingestor",
+            "type": "String",
+            "metadata": {
+                "description": "The link to function source code which orchestrates flow logging"
+            }
         },
-        "flowLogsStorageAccountConnectionString": {
+        "flowLogsStorageAccount1ConnectionString": {
             "type": "String",
             "metadata": {
                 "description": "Mandatory storage account connection string for flow log data."
+            }
+        },
+        "flowLogsStorageAccount2ConnectionString": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional storage account connection string for flow log data."
+            }
+        },
+        "flowLogsStorageAccount3ConnectionString": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional storage account connection string for flow log data."
+            }
+        },
+        "flowLogsStorageAccount4ConnectionString": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional storage account connection string for flow log data."
+            }
+        },
+        "flowLogsStorageAccount5ConnectionString": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Optional storage account connection string for flow log data."
             }
         },
         "metaDataStorageAccountConnectionString": {
@@ -46,6 +77,7 @@
     },
     "variables": {
         "functionAppName": "[parameters('appName')]",
+        "functionAppIngestorName": "[concat(parameters('appName'), '-ingestor')]",
         "hostingPlanName": "[concat(parameters('appName'), '-plan')]",
         "storageAccountName": "[concat(parameters('appName'), 'storage')]",
         "storageAccountType": "Standard_LRS",
@@ -129,26 +161,6 @@
                         {
                             "name": "WEBSITE_NODE_DEFAULT_VERSION",
                             "value": "~10"
-                        },
-                        {
-                            "name": "blobContainerName",
-                            "value": "insights-logs-networksecuritygroupflowevent"
-                        },
-                        {
-                            "name": "AZURE_STORAGE_LOGS_CONNECTION_STRING",
-                            "value": "[parameters('flowLogsStorageAccountConnectionString')]"
-                        },
-                        {
-                            "name": "AZURE_STORAGE_METADATA_CONNECTION_STRING",
-                            "value": "[parameters('metaDataStorageAccountConnectionString')]"
-                        },
-                        {
-                            "name": "AZURE_LOG_ANALYTICS_WORKSPACE_ID",
-                            "value": "[parameters('logAnalyticsWorkspaceID')]"
-                        },
-                        {
-                            "name": "AZURE_LOG_ANALYTICS_SHARED_KEY",
-                            "value": "[parameters('logAnalyticsSharedKey')]"
                         }
                     ]
                 }
@@ -169,7 +181,17 @@
                         "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-08-01').keys[0].value)]",
                         "WEBSITE_CONTENTSHARE": "[toLower(variables('functionAppName'))]",
                         "FUNCTIONS_EXTENSION_VERSION": "~4",
-                        "FUNCTIONS_WORKER_RUNTIME": "dotnet"
+                        "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+                        "blobContainerName": "insights-logs-flowlogflowevent",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_1": "[parameters('flowLogsStorageAccount1ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_2": "[parameters('flowLogsStorageAccount2ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_3": "[parameters('flowLogsStorageAccount3ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_4": "[parameters('flowLogsStorageAccount4ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_5": "[parameters('flowLogsStorageAccount5ConnectionString')]",
+                        "AZURE_STORAGE_METADATA_CONNECTION_STRING": "[parameters('metaDataStorageAccountConnectionString')]",
+                        "AZURE_LOG_ANALYTICS_WORKSPACE_ID": "[parameters('logAnalyticsWorkspaceID')]",
+                        "AZURE_LOG_ANALYTICS_SHARED_KEY": "[parameters('logAnalyticsSharedKey')]",
+                        "AZURE_INGESTOR_URL": "[concat('https://', variables('functionAppIngestorName') , '.azurewebsites.net/api/FlogIngestor?')]"
                     }
                 },
                 {
@@ -180,8 +202,122 @@
                         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
                     ],
                     "properties": {
-                        "RepoUrl": "[parameters('githubRepoURL')]",
-                        "branch": "[parameters('githubRepoBranch')]",
+                        "RepoUrl": "[parameters('githubOrchestratorRepoURL')]",
+                        "branch": "master",
+                        "IsManualIntegration": false
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('functionAppIngestorName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]"
+            ],
+            "kind": "functionapp",
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))).InstrumentationKey]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-08-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-08-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(variables('functionAppIngestorName'))]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "~10"
+                        },
+                        {
+                            "name": "blobContainerName",
+                            "value": "insights-logs-flowlogflowevent"
+                        },
+                        {
+                            "name": "AZURE_STORAGE_LOGS_CONNECTION_STRING_1",
+                            "value": "[parameters('flowLogsStorageAccount1ConnectionString')]"
+                        },
+                        {
+                            "name": "AZURE_STORAGE_METADATA_CONNECTION_STRING",
+                            "value": "[parameters('metaDataStorageAccountConnectionString')]"
+                        },
+                        {
+                            "name": "AZURE_LOG_ANALYTICS_WORKSPACE_ID",
+                            "value": "[parameters('logAnalyticsWorkspaceID')]"
+                        },
+                        {
+                            "name": "AZURE_LOG_ANALYTICS_SHARED_KEY",
+                            "value": "[parameters('logAnalyticsSharedKey')]"
+                        },
+                        {
+                            "name": "AZURE_INGESTOR_URL",
+                            "value": "[concat('https://', variables('functionAppIngestorName') , '.azurewebsites.net/api/FlogIngestor?')]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "type": "config",
+                    "apiVersion": "2021-03-01",
+                    "name": "appsettings",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', variables('functionAppIngestorName'))]",
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                        "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]"
+                    ],
+                    "properties": {
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))).InstrumentationKey]",
+                        "AzureWebJobsStorage": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-08-01').keys[0].value)]",
+                        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-08-01').keys[0].value)]",
+                        "WEBSITE_CONTENTSHARE": "[toLower(variables('functionAppIngestorName'))]",
+                        "FUNCTIONS_EXTENSION_VERSION": "~4",
+                        "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+                        "blobContainerName": "insights-logs-flowlogflowevent",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_1": "[parameters('flowLogsStorageAccount1ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_2": "[parameters('flowLogsStorageAccount2ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_3": "[parameters('flowLogsStorageAccount3ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_4": "[parameters('flowLogsStorageAccount4ConnectionString')]",
+                        "AZURE_STORAGE_LOGS_CONNECTION_STRING_5": "[parameters('flowLogsStorageAccount5ConnectionString')]",
+                        "AZURE_STORAGE_METADATA_CONNECTION_STRING": "[parameters('metaDataStorageAccountConnectionString')]",
+                        "AZURE_LOG_ANALYTICS_WORKSPACE_ID": "[parameters('logAnalyticsWorkspaceID')]",
+                        "AZURE_LOG_ANALYTICS_SHARED_KEY": "[parameters('logAnalyticsSharedKey')]",
+                        "AZURE_INGESTOR_URL": "[concat('https://', variables('functionAppIngestorName') , '.azurewebsites.net/api/FlogIngestor?')]"
+                    }
+                },
+                {
+                    "type": "sourcecontrols",
+                    "apiVersion": "2021-03-01",
+                    "name": "web",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', variables('functionAppIngestorName'))]"
+                    ],
+                    "properties": {
+                        "RepoUrl": "[parameters('githubIngestorRepoURL')]",
+                        "branch": "master",
                         "IsManualIntegration": false
                     }
                 }
